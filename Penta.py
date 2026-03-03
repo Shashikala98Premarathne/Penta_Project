@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 
-st.set_page_config(page_title="TR Project – Full Rule Validator", layout="wide")
-st.title("TR Project – Survey Logic Checker")
+st.set_page_config(page_title="Penta Project – Full Rule Validator", layout="wide")
+st.title("Penta Project – Survey Logic Checker")
 
 uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
 
@@ -39,16 +39,17 @@ if uploaded_file:
 
     value_rules = {
         "countryquestion": range(1,9),
-        "intro1": [1,2],
+        "region": [1,2,3,4],
+        "sector":range(1,10),
+        "decision_maker": [1],
         "industry": list(range(1,11)) + [99],
-        "decision_maker": [1,2],
-        "decision_maker_4axle": [1,2],
-        "preference": [1,2],
-        "overall_satisfaction": range(1,6),
-        "rear": [1,2,3],
+        "working_experience": range(0,30),
+        "job_level":range(1,6),
+        "hvo100_awareness": [1,2],
+        "hvo100_future_intention":range(1,6),
         "preparation": range(1,7),
-        "bev": range(1,7),
-        "bev_2": range(1,6),
+        "hvo100_perception_": list(range(1,11)) + [99],
+        "hvo100_drivers_": [1,2],
         "bev_3": range(1,6),
         "rear_bev": [1,2,3],
         "crane_13": [1,2,3,4],
@@ -58,10 +59,10 @@ if uploaded_file:
 
     # All 0/1 variables
     zero_one_prefixes = [
-        "target_group_",
-        "awareness_",
-        "in_fleet_",
-        "awarenesscoded_",
+        "engines_",
+        "fuel_types_",
+        "fuel_awareness_",
+        "fuel_future_intention_",
         "in_fleetcoded_",
         "barriers_",
         "truck_quantity_dk",
