@@ -67,9 +67,6 @@ if uploaded_file:
         "fuel_awareness_",
         "fuel_future_intention_",
         "in_fleetcoded_",
-        "barriers_",
-        "truck_quantity_dk",
-        "type_quantity_dk"
     ]
 
     # Matrix 1–5 validation
