@@ -52,7 +52,7 @@ if uploaded_file:
         "environmental_targets": [1,2,99],
         "environmental_targets_depth": [1,2,3,99],
         "hvo100_other_companies": [1,2,3,4],
-        "hvo100_barriers": range(1,16),
+        "hvo100_barriers": range(1,2),
         "hvo100_communication": [1,2]
     }
 
@@ -60,7 +60,8 @@ if uploaded_file:
         "engines_",
         "fuel_types_",
         "fuels_awareness_",
-        "fuel_future_intention_"
+        "fuel_future_intention_",
+        "hvo100_barriers"
     ]
 
     split_prefix = "fuel_usage_split_"
