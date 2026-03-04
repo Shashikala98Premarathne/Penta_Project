@@ -52,6 +52,7 @@ if uploaded_file:
         "environmental_targets": [1,2,99],
         "environmental_targets_depth": [1,2,3,99],
         "hvo100_other_companies": [1,2,3,4],
+        "hvo100_barriers": range(1,16),
         "hvo100_communication": [1,2]
     }
 
