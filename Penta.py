@@ -18,7 +18,7 @@ if uploaded_file:
 
     df = df.replace(["#NULL!", "NULL", "null", ""], np.nan)
     df.columns = df.columns.str.strip()
-    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    df = df.apply(lambda col: col.map(lambda x: x.strip() if isinstance(x, str) else x))
 
     st.success("Excel uploaded and cleaned successfully")
 
@@ -55,7 +55,6 @@ if uploaded_file:
         "hvo100_communication": [1,2]
     }
 
-    # Prefix based value rules
     zero_one_prefixes = [
         "engines_",
         "fuel_types_",
@@ -65,6 +64,15 @@ if uploaded_file:
 
     split_prefix = "fuel_usage_split_"
     program_prefix = "environmental_program_"
+
+    # =====================================================
+    # COLUMN DETECTION (performance improvement)
+    # =====================================================
+
+    fuel_cols = [c for c in df.columns if c.startswith("fuel_types_")]
+    split_cols = [c for c in df.columns if c.startswith(split_prefix)]
+    hvo_cols = [c for c in df.columns if c.startswith("hvo100_")]
+    program_cols = [c for c in df.columns if c.startswith(program_prefix)]
 
     # =====================================================
     # LOOP THROUGH RESPONDENTS
@@ -201,8 +209,6 @@ if uploaded_file:
         # FUEL TYPE COUNT
         # =====================================================
 
-        fuel_cols = [c for c in df.columns if c.startswith("fuel_types_")]
-
         fuel_count = sum(
             pd.to_numeric(row.get(c), errors="coerce") == 1
             for c in fuel_cols
@@ -211,8 +217,6 @@ if uploaded_file:
         # =====================================================
         # FUEL SPLIT LOGIC
         # =====================================================
-
-        split_cols = [c for c in df.columns if c.startswith(split_prefix)]
 
         split_values = []
 
@@ -223,7 +227,9 @@ if uploaded_file:
             if not pd.isna(val):
                 split_values.append(val)
 
-        if fuel_count <= 1 and split_values:
+        # CASE 1: fuel_count = 0 → splits should not exist
+
+        if fuel_count == 0 and split_values:
 
             for c in split_cols:
 
@@ -234,8 +240,10 @@ if uploaded_file:
                         "FUEL_SPLIT_LOGIC",
                         c,
                         row.get(c),
-                        "Should exist only if >1 fuel type"
+                        "Fuel split should not exist when no fuel type selected"
                     )
+
+        # CASE 2: fuel_count > 1 → splits must sum to 100
 
         if fuel_count > 1 and split_values:
 
@@ -248,7 +256,7 @@ if uploaded_file:
                     "FUEL_SPLIT_SUM",
                     "fuel_usage_split_total",
                     total_split,
-                    "fuel_usage_split must sum to 100"
+                    "fuel_usage_split_1 + 2 + 3 must equal 100"
                 )
 
         # =====================================================
@@ -258,7 +266,7 @@ if uploaded_file:
         awareness = pd.to_numeric(row.get("hvo100_awareness"), errors="coerce")
         future = pd.to_numeric(row.get("hvo100_future_intention"), errors="coerce")
 
-        if awareness != 1 and not pd.isna(future):
+        if awareness != 1 and not pd.isna(awareness) and not pd.isna(future):
 
             add_error(
                 respid,
@@ -280,15 +288,13 @@ if uploaded_file:
                 "Only if future intention =1 or 2"
             )
 
-        hvo_cols = [c for c in df.columns if c.startswith("hvo100_")]
-
         for c in hvo_cols:
 
             if c in ["hvo100_awareness","hvo100_future_intention",
                      "hvo100_other_companies","hvo100_communication"]:
                 continue
 
-            if awareness != 1 and not pd.isna(row.get(c)):
+            if awareness != 1 and not pd.isna(awareness) and not pd.isna(row.get(c)):
 
                 add_error(
                     respid,
@@ -314,8 +320,6 @@ if uploaded_file:
                 env_depth,
                 "Only if environmental_targets=1"
             )
-
-        program_cols = [c for c in df.columns if c.startswith(program_prefix)]
 
         if env_target != 1:
 
