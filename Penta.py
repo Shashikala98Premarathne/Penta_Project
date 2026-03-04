@@ -34,53 +34,38 @@ if uploaded_file:
         })
 
     # =====================================================
-    # VALUE DOMAIN DEFINITIONS
+    # VALUE DOMAIN RULES
     # =====================================================
 
     value_rules = {
-        "countryquestion": range(1,9),
-        "region": [1,2,3,4],
-        "sector":range(1,10),
+        "countryquestion": range(1,10),
+        "region": range(1,5),
+        "sector": range(1,7),
         "decision_maker": [1],
-        "industry":list(range(1,11)) + [99],
-        "working_experience": range(0,30),
-        "job_level":range(1,6),
+        "working_experience": range(0,60),
+        "job_level": range(1,6),
         "hvo100_awareness": [1,2],
-        "hvo100_future_intention":range(1,6),
-        "hvo100_perception_": list(range(1,11)) + [99],
-        "hvo100_drivers_": [1,2],
+        "hvo100_future_intention": range(1,6),
         "hvo100_key_drivers": range(1,12),
-        "hvo100_barriers_": [1,2],
-        "hvo100_key_barriers":range(1,16),
+        "hvo100_key_barriers": range(1,16),
         "hvo100_cost_comparison": list(range(1,7)) + [99],
-        "environmental_targets":[1,2],
-        "environmental_targets_depth":[1,2,3,99],
-        "environmental_program_":[1,2,99],
-        "hvo100_other_companies":[1,2,3,4],
-        "hvo100_communication":[1,2]
+        "environmental_targets": [1,2,99],
+        "environmental_targets_depth": [1,2,3,99],
+        "hvo100_other_companies": [1,2,3,4],
+        "hvo100_communication": [1,2]
     }
 
-    # All 0/1 variables
+    # 0/1 variables
     zero_one_prefixes = [
         "engines_",
         "fuel_types_",
-        "fuel_awareness_",
+        "fuel_usage_split_",
+        "fuels_awareness_",
         "fuel_future_intention_",
-        "in_fleetcoded_",
+        "hvo100_drivers_",
+        "hvo100_barriers_",
+        "environmental_program_"
     ]
-
-    # Matrix 1–5 validation
-    matrix_prefixes = [
-        "drivers_vf_13_",
-        "drivers_vf_22_",
-        "drivers_body_13_",
-        "drivers_body_22_",
-        "drivers_bus_13_",
-        "drivers_bus_22_"
-    ]
-
-    body13_cols = [c for c in df.columns if c.startswith("body_type_13_")]
-    body22_cols = [c for c in df.columns if c.startswith("body_type_22_")]
 
     # =====================================================
     # LOOP THROUGH RESPONDENTS
@@ -89,10 +74,6 @@ if uploaded_file:
     for _, row in df.iterrows():
 
         respid = row.get("respid")
-
-        # -----------------------------
-        # GENERIC VALUE CHECK FUNCTION
-        # -----------------------------
 
         def check_value(var, valid_values, rule_id):
 
@@ -111,21 +92,24 @@ if uploaded_file:
                     f"Allowed values: {valid_values}"
                 )
 
-        # -----------------------------
-        # APPLY FIXED VALUE RULES
-        # -----------------------------
+        # =====================================================
+        # VALUE CHECKS
+        # =====================================================
 
         for var, valid_vals in value_rules.items():
             if var in df.columns:
                 check_value(var, valid_vals, "VALUE_CHECK")
 
-        # -----------------------------
-        # 0/1 VARIABLES
-        # -----------------------------
+        # =====================================================
+        # 0/1 CHECKS
+        # =====================================================
 
         for col in df.columns:
+
             for prefix in zero_one_prefixes:
+
                 if col.startswith(prefix):
+
                     raw_val = row.get(col)
                     val = pd.to_numeric(raw_val, errors="coerce")
 
@@ -133,6 +117,7 @@ if uploaded_file:
                         continue
 
                     if val not in [0,1]:
+
                         add_error(
                             respid,
                             "VALUE_CHECK_01",
@@ -141,109 +126,244 @@ if uploaded_file:
                             "Allowed values: 0 or 1"
                         )
 
-        # -----------------------------
-        # MATRIX 1–5 VALIDATION
-        # -----------------------------
+        # =====================================================
+        # ENGINE VALIDATION
+        # =====================================================
 
         for col in df.columns:
-            for prefix in matrix_prefixes:
-                if col.startswith(prefix):
-                    raw_val = row.get(col)
-                    val = pd.to_numeric(raw_val, errors="coerce")
 
-                    if pd.isna(val):
-                        continue
+            if col.startswith("engines_"):
 
-                    if val not in range(1,6):
+                code = col.split("_")[1]
+
+                if code.isdigit():
+
+                    code = int(code)
+
+                    if not (1 <= code <= 15 or code in [95,96,97,99]):
+
                         add_error(
                             respid,
-                            "VALUE_CHECK_MATRIX",
+                            "ENGINE_RANGE",
                             col,
-                            raw_val,
-                            "Allowed values: 1–5"
+                            code,
+                            "Allowed: 1-15,95-99"
                         )
 
-        # -----------------------------
-        # TRUCK QUANTITY 0–999
-        # -----------------------------
+        # =====================================================
+        # FLEET SIZE
+        # =====================================================
 
-        truck_q = pd.to_numeric(row.get("truck_quantity"), errors="coerce")
+        fleet = pd.to_numeric(row.get("fleet_size"), errors="coerce")
 
-        if not pd.isna(truck_q):
-            if truck_q < 0 or truck_q > 999:
+        if not pd.isna(fleet):
+
+            if fleet < 0 or fleet > 999:
+
                 add_error(
                     respid,
-                    "TRUCK_RANGE",
-                    "truck_quantity",
-                    truck_q,
-                    "Allowed range: 0–999"
+                    "FLEET_RANGE",
+                    "fleet_size",
+                    fleet,
+                    "Allowed range 0-999"
                 )
 
-        # -----------------------------
-        # LOGIC VALIDATIONS (Existing)
-        # -----------------------------
+            if fleet == 0:
 
-        tq1 = pd.to_numeric(row.get("type_quantity_1"), errors="coerce")
-        tq2 = pd.to_numeric(row.get("type_quantity_2"), errors="coerce")
-
-        tq1 = 0 if pd.isna(tq1) else tq1
-        tq2 = 0 if pd.isna(tq2) else tq2
-        truck_q = 0 if pd.isna(truck_q) else truck_q
-
-        if truck_q > 0:
-
-            if tq1 <= 0 and tq2 <= 0:
                 add_error(
                     respid,
-                    "LOGIC_TYPE",
-                    "type_quantity_1/type_quantity_2",
-                    f"{tq1}/{tq2}",
-                    "At least one must be >0"
+                    "FLEET_ZERO",
+                    "fleet_size",
+                    fleet,
+                    "Fleet size must be >0"
                 )
 
-            if tq1 + tq2 != truck_q:
+        # =====================================================
+        # JOB LEVEL LOGIC
+        # =====================================================
+
+        job_level = pd.to_numeric(row.get("job_level"), errors="coerce")
+        exp = pd.to_numeric(row.get("working_experience"), errors="coerce")
+
+        if not pd.isna(job_level):
+
+            if job_level == 1:
+
                 add_error(
                     respid,
-                    "LOGIC_SUM",
-                    "type_quantity_sum",
-                    tq1 + tq2,
-                    f"Must equal truck_quantity ({truck_q})"
+                    "JOBLEVEL_INVALID",
+                    "job_level",
+                    job_level,
+                    "job_level cannot be 1"
                 )
 
-        # -----------------------------
-        # BODY SUM CHECK
-        # -----------------------------
+            if job_level == 2 and not pd.isna(exp) and exp < 3:
 
-        total_body13 = 0
+                add_error(
+                    respid,
+                    "JOBLEVEL_EXPERIENCE",
+                    "working_experience",
+                    exp,
+                    "job_level=2 requires experience >=3"
+                )
 
-        for c in body13_cols:
+        # =====================================================
+        # FUEL TYPES COUNT
+        # =====================================================
+
+        fuel_cols = [c for c in df.columns if c.startswith("fuel_types_")]
+
+        fuel_count = 0
+
+        for c in fuel_cols:
+
             val = pd.to_numeric(row.get(c), errors="coerce")
-            if not pd.isna(val):
-                total_body13 += val
 
-        if tq2 > 0 and total_body13 != tq2:
+            if val == 1:
+                fuel_count += 1
+
+        # =====================================================
+        # FUEL MAIN CHOICE LOGIC
+        # =====================================================
+
+        fuel_main = pd.to_numeric(row.get("fuel_main_choice"), errors="coerce")
+
+        if fuel_count <= 1 and not pd.isna(fuel_main):
+
             add_error(
                 respid,
-                "LOGIC_BODY13",
-                "body_type_13_total",
-                total_body13,
-                f"Must equal type_quantity_2 ({tq2})"
+                "FUEL_MAIN_LOGIC",
+                "fuel_main_choice",
+                fuel_main,
+                "Should exist only if >1 fuel type"
             )
 
-        total_body22 = 0
+        # =====================================================
+        # FUEL SPLIT LOGIC
+        # =====================================================
 
-        for c in body22_cols:
-            val = pd.to_numeric(row.get(c), errors="coerce")
-            if not pd.isna(val):
-                total_body22 += val
+        split_cols = [c for c in df.columns if c.startswith("fuel_usage_split_")]
 
-        if tq1 > 0 and total_body22 != tq1:
+        if fuel_count <= 1:
+
+            for c in split_cols:
+
+                if not pd.isna(row.get(c)):
+
+                    add_error(
+                        respid,
+                        "FUEL_SPLIT_LOGIC",
+                        c,
+                        row.get(c),
+                        "Should exist only if >1 fuel type"
+                    )
+
+        # =====================================================
+        # HVO AWARENESS LOGIC
+        # =====================================================
+
+        awareness = pd.to_numeric(row.get("hvo100_awareness"), errors="coerce")
+        future = pd.to_numeric(row.get("hvo100_future_intention"), errors="coerce")
+
+        if awareness != 1 and not pd.isna(future):
+
             add_error(
                 respid,
-                "LOGIC_BODY22",
-                "body_type_22_total",
-                total_body22,
-                f"Must equal type_quantity_1 ({tq1})"
+                "HVO_FUTURE_LOGIC",
+                "hvo100_future_intention",
+                future,
+                "Only if hvo100_awareness=1"
+            )
+
+        # =====================================================
+        # HVO OE BARRIERS
+        # =====================================================
+
+        barriers = row.get("hvo100_oe_barriers")
+
+        if future not in [1,2] and not pd.isna(barriers):
+
+            add_error(
+                respid,
+                "HVO_BARRIER_LOGIC",
+                "hvo100_oe_barriers",
+                barriers,
+                "Only if future intention =1 or 2"
+            )
+
+        # =====================================================
+        # HVO BLOCK QUESTIONS
+        # =====================================================
+
+        hvo_columns = [c for c in df.columns if c.startswith("hvo100_")]
+
+        for c in hvo_columns:
+
+            if c in ["hvo100_awareness", "hvo100_future_intention"]:
+                continue
+
+            if awareness != 1 and not pd.isna(row.get(c)):
+
+                add_error(
+                    respid,
+                    "HVO_AWARENESS_BLOCK",
+                    c,
+                    row.get(c),
+                    "Only if hvo100_awareness=1"
+                )
+
+        # =====================================================
+        # ENVIRONMENTAL TARGET LOGIC
+        # =====================================================
+
+        env_target = pd.to_numeric(row.get("environmental_targets"), errors="coerce")
+        env_depth = row.get("environmental_targets_depth")
+
+        if env_target != 1 and not pd.isna(env_depth):
+
+            add_error(
+                respid,
+                "ENV_DEPTH_LOGIC",
+                "environmental_targets_depth",
+                env_depth,
+                "Only if environmental_targets=1"
+            )
+
+        # =====================================================
+        # ENV PROGRAM LOGIC
+        # =====================================================
+
+        program_cols = [c for c in df.columns if c.startswith("environmental_program_")]
+
+        if env_target != 1:
+
+            for c in program_cols:
+
+                if not pd.isna(row.get(c)):
+
+                    add_error(
+                        respid,
+                        "ENV_PROGRAM_LOGIC",
+                        c,
+                        row.get(c),
+                        "Only if environmental_targets=1"
+                    )
+
+        # =====================================================
+        # COMMUNICATION LOGIC
+        # =====================================================
+
+        other_comp = pd.to_numeric(row.get("hvo100_other_companies"), errors="coerce")
+        comm = row.get("hvo100_communication")
+
+        if other_comp not in [1,2] and not pd.isna(comm):
+
+            add_error(
+                respid,
+                "COMMUNICATION_LOGIC",
+                "hvo100_communication",
+                comm,
+                "Only if hvo100_other_companies =1 or 2"
             )
 
     # =====================================================
@@ -264,6 +384,7 @@ if uploaded_file:
     # =====================================================
 
     output = BytesIO()
+
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         report_df.to_excel(writer, index=False, sheet_name="Validation_Report")
 
