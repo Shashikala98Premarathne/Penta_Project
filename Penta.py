@@ -45,14 +45,14 @@ if uploaded_file:
         "working_experience": range(0,60),
         "job_level": range(1,6),
         "hvo100_awareness": [1,2],
-        "hvo100_future_intention": range(1,6),
+        "hvo100_future_intention": [1,2,3,4,5],
+        "hvo100_barriers":[1,2],
         "hvo100_key_drivers": range(1,12),
         "hvo100_key_barriers": range(1,16),
         "hvo100_cost_comparison": list(range(1,7)) + [99],
         "environmental_targets": [1,2,99],
         "environmental_targets_depth": [1,2,3,99],
         "hvo100_other_companies": [1,2,3,4],
-        "hvo100_barriers": range(1,2),
         "hvo100_communication": [1,2]
     }
 
@@ -60,8 +60,7 @@ if uploaded_file:
         "engines_",
         "fuel_types_",
         "fuels_awareness_",
-        "fuel_future_intention_",
-        "hvo100_barriers"
+        "fuel_future_intention_"
     ]
 
     split_prefix = "fuel_usage_split_"
