@@ -34,7 +34,7 @@ if uploaded_file:
         })
 
     # =====================================================
-    # VALUE DOMAIN RULES
+    # VALUE RULES
     # =====================================================
 
     value_rules = {
@@ -67,13 +67,27 @@ if uploaded_file:
     program_prefix = "environmental_program_"
 
     # =====================================================
-    # COLUMN DETECTION (performance improvement)
+    # COLUMN DETECTION
     # =====================================================
 
     fuel_cols = [c for c in df.columns if c.startswith("fuel_types_")]
     split_cols = [c for c in df.columns if c.startswith(split_prefix)]
     hvo_cols = [c for c in df.columns if c.startswith("hvo100_")]
     program_cols = [c for c in df.columns if c.startswith(program_prefix)]
+
+    engine_cols = [c for c in df.columns if c.startswith("engines_")and not c.endswith("_other")]
+    fuel_awareness_cols = [c for c in df.columns if c.startswith("fuels_awareness_")]
+    fuel_future_cols = [c for c in df.columns if c.startswith("fuel_future_intention_")]
+    hvo_perception_cols = [c for c in df.columns if c.startswith("hvo100_perception_")]
+    hvo_driver_cols = [c for c in df.columns if c.startswith("hvo100_drivers_")]
+    hvo_barrier_cols = [c for c in df.columns if c.startswith("hvo100_barriers_")]
+
+    required_vars = [
+        "countryquestion","region","sector","l",
+        "decision_maker","working_experience",
+        "job_level","fleet_size",
+        "environmental_targets","hvo100_other_companies"
+    ]
 
     # =====================================================
     # LOOP THROUGH RESPONDENTS
@@ -84,277 +98,154 @@ if uploaded_file:
         respid = row.get("respid")
 
         # =====================================================
-        # BASIC VALUE VALIDATION
+        # REQUIRED VARIABLES
+        # =====================================================
+
+        for var in required_vars:
+            if var in df.columns and pd.isna(row.get(var)):
+                add_error(respid, "MISSING_REQUIRED", var, None, "Must not be empty")
+
+        # =====================================================
+        # STRICT GRID (NO EMPTY CELLS)
+        # =====================================================
+
+        strict_grids = (
+            engine_cols +
+            fuel_cols +
+            fuel_awareness_cols +
+            fuel_future_cols
+        )
+
+        if "fuel_main_choice" in df.columns:
+            strict_grids.append("fuel_main_choice")
+
+        for col in strict_grids:
+            if col in df.columns and pd.isna(row.get(col)):
+                add_error(respid, "MISSING_GRID", col, None, "Must not be empty")
+
+        # =====================================================
+        # VALUE VALIDATION
         # =====================================================
 
         for var, allowed in value_rules.items():
-
             if var in df.columns:
-
                 val = pd.to_numeric(row.get(var), errors="coerce")
-
                 if not pd.isna(val) and val not in allowed:
-
-                    add_error(
-                        respid,
-                        "VALUE_CHECK",
-                        var,
-                        row.get(var),
-                        f"Allowed values: {allowed}"
-                    )
+                    add_error(respid, "VALUE_CHECK", var, row.get(var), f"Allowed: {allowed}")
 
         # =====================================================
-        # PREFIX VALIDATIONS (0/1 VARIABLES)
+        # 0/1 VALIDATION
         # =====================================================
 
         for col in df.columns:
-
             for prefix in zero_one_prefixes:
-
                 if col.startswith(prefix):
-
                     val = pd.to_numeric(row.get(col), errors="coerce")
-
                     if not pd.isna(val) and val not in [0,1]:
-
-                        add_error(
-                            respid,
-                            "VALUE_CHECK_01",
-                            col,
-                            row.get(col),
-                            "Allowed values: 0 or 1"
-                        )
-
-        # =====================================================
-        # ENGINE RANGE VALIDATION
-        # =====================================================
-
-        for col in df.columns:
-
-            if col.startswith("engines_"):
-
-                code = col.split("_")[1]
-
-                if code.isdigit():
-
-                    code = int(code)
-
-                    if not (1 <= code <= 15 or code in [95,96,97,99]):
-
-                        add_error(
-                            respid,
-                            "ENGINE_RANGE",
-                            col,
-                            code,
-                            "Allowed: 1-15,95-99"
-                        )
+                        add_error(respid, "VALUE_CHECK_01", col, row.get(col), "0 or 1 only")
 
         # =====================================================
         # FLEET SIZE
         # =====================================================
 
         fleet = pd.to_numeric(row.get("fleet_size"), errors="coerce")
-
         if not pd.isna(fleet):
-
-            if fleet < 0 or fleet > 999:
-
-                add_error(
-                    respid,
-                    "FLEET_RANGE",
-                    "fleet_size",
-                    fleet,
-                    "Allowed range 0–999"
-                )
-
-            if fleet == 0:
-
-                add_error(
-                    respid,
-                    "FLEET_ZERO",
-                    "fleet_size",
-                    fleet,
-                    "Fleet size must be >0"
-                )
+            if fleet <= 0 or fleet > 999:
+                add_error(respid, "FLEET_RANGE", "fleet_size", fleet, "1–999 only")
 
         # =====================================================
-        # JOB LEVEL LOGIC
+        # JOB LEVEL
         # =====================================================
 
         job_level = pd.to_numeric(row.get("job_level"), errors="coerce")
-        experience = pd.to_numeric(row.get("working_experience"), errors="coerce")
+        exp = pd.to_numeric(row.get("working_experience"), errors="coerce")
 
-        if not pd.isna(job_level):
+        if job_level == 1:
+            add_error(respid, "JOBLEVEL_INVALID", "job_level", job_level, "Cannot be 1")
 
-            if job_level == 1:
-
-                add_error(
-                    respid,
-                    "JOBLEVEL_INVALID",
-                    "job_level",
-                    job_level,
-                    "job_level cannot be 1"
-                )
-
-            if job_level == 2 and not pd.isna(experience) and experience < 3:
-
-                add_error(
-                    respid,
-                    "JOBLEVEL_EXPERIENCE",
-                    "working_experience",
-                    experience,
-                    "job_level=2 requires experience ≥3"
-                )
+        if job_level == 2 and not pd.isna(exp) and exp < 3:
+            add_error(respid, "JOBLEVEL_EXP", "working_experience", exp, "≥3 required")
 
         # =====================================================
-        # FUEL TYPE COUNT
+        # FUEL SPLIT
         # =====================================================
 
-        fuel_count = sum(
-            pd.to_numeric(row.get(c), errors="coerce") == 1
-            for c in fuel_cols
-        )
+        fuel_count = sum(pd.to_numeric(row.get(c), errors="coerce") == 1 for c in fuel_cols)
+        splits = [pd.to_numeric(row.get(c), errors="coerce") for c in split_cols if not pd.isna(row.get(c))]
+
+        if fuel_count == 0 and splits:
+            add_error(respid, "FUEL_SPLIT_LOGIC", "split", None, "No splits allowed")
+
+        if fuel_count > 1 and sum(splits) != 100:
+            add_error(respid, "FUEL_SPLIT_SUM", "split_total", sum(splits), "Must equal 100")
 
         # =====================================================
-        # FUEL SPLIT LOGIC
-        # =====================================================
-
-        split_values = []
-
-        for c in split_cols:
-
-            val = pd.to_numeric(row.get(c), errors="coerce")
-
-            if not pd.isna(val):
-                split_values.append(val)
-
-        # CASE 1: fuel_count = 0 → splits should not exist
-
-        if fuel_count == 0 and split_values:
-
-            for c in split_cols:
-
-                if not pd.isna(row.get(c)):
-
-                    add_error(
-                        respid,
-                        "FUEL_SPLIT_LOGIC",
-                        c,
-                        row.get(c),
-                        "Fuel split should not exist when no fuel type selected"
-                    )
-
-        # CASE 2: fuel_count > 1 → splits must sum to 100
-
-        if fuel_count > 1 and split_values:
-
-            total_split = sum(split_values)
-
-            if total_split != 100:
-
-                add_error(
-                    respid,
-                    "FUEL_SPLIT_SUM",
-                    "fuel_usage_split_total",
-                    total_split,
-                    "fuel_usage_split_1 + 2 + 3 must equal 100"
-                )
-
-        # =====================================================
-        # HVO LOGIC
+        # HVO CONDITIONAL LOGIC
         # =====================================================
 
         awareness = pd.to_numeric(row.get("hvo100_awareness"), errors="coerce")
         future = pd.to_numeric(row.get("hvo100_future_intention"), errors="coerce")
+        fuel_awareness_2 = pd.to_numeric(row.get("fuels_awareness_2"), errors="coerce")
 
-        if awareness != 1 and not pd.isna(awareness) and not pd.isna(future):
+        if fuel_awareness_2 == 0 and pd.isna(awareness):
+            add_error(respid, "MISSING_LOGIC", "hvo100_awareness", None, "Required when fuels_awareness_2=0")
 
-            add_error(
-                respid,
-                "HVO_FUTURE_LOGIC",
-                "hvo100_future_intention",
-                future,
-                "Only if awareness=1"
+        if awareness == 1 and pd.isna(future):
+            add_error(respid, "MISSING_LOGIC", "hvo100_future_intention", None, "Required when awareness=1")
+
+        if future in [1,2] and pd.isna(row.get("hvo100_oe_barriers")):
+            add_error(respid, "MISSING_LOGIC", "hvo100_oe_barriers", None, "Required when future=1,2")
+
+        if future in [3,4,5] and pd.isna(row.get("hvo100_oe_drivers")):
+            add_error(respid, "MISSING_LOGIC", "hvo100_oe_drivers", None, "Required when future=3,4,5")
+
+        if awareness == 1:
+
+            for c in hvo_perception_cols + hvo_driver_cols + hvo_barrier_cols:
+                if pd.isna(row.get(c)):
+                    add_error(respid, "MISSING_HVO_BLOCK", c, None, "Required when awareness=1")
+
+            driver_selected = any(
+                pd.to_numeric(row.get(c), errors="coerce") == 1
+                for c in hvo_driver_cols
             )
 
-        barriers = row.get("hvo100_oe_barriers")
+            if driver_selected and pd.isna(row.get("hvo100_key_drivers")):
+                add_error(respid, "MISSING_KEY_DRIVER", "hvo100_key_drivers", None, "Required when driver selected")
 
-        if future not in [1,2] and not pd.isna(barriers):
+            if pd.isna(row.get("hvo100_key_barriers")):
+                add_error(respid, "MISSING_KEY_BARRIER", "hvo100_key_barriers", None, "Required when awareness=1")
 
-            add_error(
-                respid,
-                "HVO_BARRIER_LOGIC",
-                "hvo100_oe_barriers",
-                barriers,
-                "Only if future intention =1 or 2"
-            )
-
-        for c in hvo_cols:
-
-            if c in ["hvo100_awareness","hvo100_future_intention",
-                     "hvo100_other_companies","hvo100_communication"]:
-                continue
-
-            if awareness != 1 and not pd.isna(awareness) and not pd.isna(row.get(c)):
-
-                add_error(
-                    respid,
-                    "HVO_AWARENESS_BLOCK",
-                    c,
-                    row.get(c),
-                    "Only if awareness=1"
-                )
+            for var in ["hvo100_cost_comparison", "hvo100_operational_changes_OE"]:
+                if pd.isna(row.get(var)):
+                    add_error(respid, "MISSING_HVO_FIELD", var, None, "Required when awareness=1")
 
         # =====================================================
-        # ENVIRONMENTAL LOGIC
+        # ENVIRONMENT
         # =====================================================
 
-        env_target = pd.to_numeric(row.get("environmental_targets"), errors="coerce")
-        env_depth = row.get("environmental_targets_depth")
+        env = pd.to_numeric(row.get("environmental_targets"), errors="coerce")
 
-        if env_target != 1 and not pd.isna(env_depth):
+        if env == 1:
 
-            add_error(
-                respid,
-                "ENV_DEPTH_LOGIC",
-                "environmental_targets_depth",
-                env_depth,
-                "Only if environmental_targets=1"
-            )
-
-        if env_target != 1:
+            if pd.isna(row.get("environmental_targets_depth")):
+                add_error(respid, "MISSING_ENV", "environmental_targets_depth", None, "Required")
 
             for c in program_cols:
-
-                if not pd.isna(row.get(c)):
-
-                    add_error(
-                        respid,
-                        "ENV_PROGRAM_LOGIC",
-                        c,
-                        row.get(c),
-                        "Only if environmental_targets=1"
-                    )
+                if pd.isna(row.get(c)):
+                    add_error(respid, "MISSING_ENV_PROGRAM", c, None, "Required")
 
         # =====================================================
-        # COMMUNICATION LOGIC
+        # COMMUNICATION
         # =====================================================
 
-        other_comp = pd.to_numeric(row.get("hvo100_other_companies"), errors="coerce")
-        comm = row.get("hvo100_communication")
+        other = pd.to_numeric(row.get("hvo100_other_companies"), errors="coerce")
 
-        if other_comp not in [1,2] and not pd.isna(comm):
-
-            add_error(
-                respid,
-                "COMMUNICATION_LOGIC",
-                "hvo100_communication",
-                comm,
-                "Only if hvo100_other_companies =1 or 2"
-            )
+        if other in [1,2] and pd.isna(row.get("hvo100_communication")):
+            add_error(respid, "MISSING_COMM", "hvo100_communication", None, "Required")
 
     # =====================================================
-    # BUILD REPORT
+    # REPORT
     # =====================================================
 
     report_df = pd.DataFrame(validation_errors)
